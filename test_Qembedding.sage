@@ -42,4 +42,8 @@ print(det(U))
 res = matrix(ZZ,res)
 res2 = matrix(ZZ,res2)
 
-print( res.hermite_form() - res2.hermite_form() )
+Zero = res.hermite_form() - res2.hermite_form()
+
+print( Zero )
+
+assert Zero.is_zero()
