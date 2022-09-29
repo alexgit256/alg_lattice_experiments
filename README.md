@@ -11,6 +11,8 @@ File `test_rank2_modules.sage` contains function `test_short_vector_insertion_mu
     nthreads = 1 - the amount of threads to utilize (<2 if not using multithreading at all)
     qary - if not None, should be an integer q. Then the module is (q,0)*OK + ([h mod q],1)*OK
     
-It constructs `times` rank-2 modules over the number field, embeds them (using the coefficient embedding if `via_Minkowski` is False) and run CVP to obtain the shortest nonzeero vector of the module. It then tries to insert it into the algeebraic basis as in [KEF16] and gathers the statistics of fails / sucsesses.
+It constructs `times` rank-2 modules over the number field, embeds them (using the coefficient embedding if `via_Minkowski` is False) and run CVP to obtain the shortest nonzeero vector of the module. It then tries to insert it into the algeebraic basis as in [KEF19] and gathers the statistics of fails / sucsesses.
 
 File `test_Qembedding.sage` is intended to check if the coefficient embedding is performed correctly. 
+
+[KEF19] - Kirchner, Paul, Thomas Espitau, and Pierre-Alain Fouque. "Algebraic and euclidean lattices: optimal lattice reduction and beyond." Cryptology ePrint Archive (2019). https://eprint.iacr.org/2019/1436
