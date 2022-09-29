@@ -55,11 +55,11 @@ def short_lattice_vectors(B, nr_solutions=1, verbose=False):
     return [Mint.multiply_left([round(t) for t in v[1]]) for v in res]#[vector([round(t) for t in v[1]])*Mint for v in res]
 
 
-def test_field(field_conductor,p_max=10, p=3, verbose=False):
+def test_field(field_conductor, p=3, p_max=10, verbose=False):
 
     #field_conductor: conductor of number field we decompose ideals over
-    #p_max: number of primes we do experiments with
     #p: number such that we start experiments from the next_prime(p-1)
+    #p_max: primes we do experiments up to
     #vect_num: number of shortest vectors to check for a fixed ideal
 
     instances = []
@@ -74,7 +74,7 @@ def test_field(field_conductor,p_max=10, p=3, verbose=False):
 
     p=p-1  #we start from the next_prime(p-1)
 
-    while p<p_max:
+    while p<=p_max:
         p = next_prime(p)
 
         print('Counting for prime:', p)
