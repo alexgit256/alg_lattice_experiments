@@ -310,7 +310,9 @@ class PseudoBasis:
         return prod( self.Is )
 
     def det(self):
-        return norm( det( self.A ) ) * norm( self.steinitz_class_member() )
+        if self.A.nrows()==self.A.ncols:
+            return norm( det( self.A ) ) * norm( self.steinitz_class_member() )
+        return norm( det( self.A*self.A.conjugate_transpose() ) )^0.5 * norm( self.steinitz_class_member() )
 
     def hnf_reduce(self):
         if self.is_hnf_reduced:
@@ -367,7 +369,13 @@ class PseudoBasis:
                     delta[i*d+j] += list(tmp)
         M = matrix(QQ, delta )
 
-        assert self.det() == det(M), f"Descend to Q failed!" + str(self.det().n(29) )+ ' vs ' + str(det(M).n(29))
+        """
+        The assertion below fails because of https://trac.sagemath.org/ticket/34597. That's why we need file test_Qembedding.sage
+        Probably, it'll be fixed in sage 9.8.
+        """
+        #qdet = 0.5 * ln( abs(det(M*M.conjugate_transpose())) ).n()
+        #algdet = ln( abs(self.det() )).n()
+        #assert abs( algdet - qdet ) < 6 , f"Descend to Q failed! {algdet} vs {qdet} !"
 
         if do_lll:
             M =  M.LLL()
