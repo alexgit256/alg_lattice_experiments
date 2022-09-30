@@ -375,7 +375,10 @@ class PseudoBasis:
                     delta[i*d+j] += list(tmp)
         M = matrix(QQ, delta )
 
-        #The assertion below fails because of https://trac.sagemath.org/ticket/34597. That's why we need file test_Qembedding.sage
+        """
+        The assertion below fails because of https://trac.sagemath.org/ticket/34597. That's why we need file test_Qembedding.sage
+        Probably, it'll be fixed in sage 9.8.
+        """
         #qdet = 0.5 * ln( abs(det(M*M.conjugate_transpose())) ).n()
         #algdet = ln( abs(self.det() )).n()
         #assert abs( algdet - qdet ) < 6 , f"Descend to Q failed! {algdet} vs {qdet} !"

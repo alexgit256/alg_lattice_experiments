@@ -125,5 +125,5 @@ def test_field(field_conductor, p=3, p_max=10, verbose=False):
     return(instances)
 
 
-n = 2^6
-res = test_field(n, 20, 10)
+n = 32
+res = test_field(n, 3, 97)

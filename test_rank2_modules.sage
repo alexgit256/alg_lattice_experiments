@@ -223,7 +223,7 @@ def test_short_vector_insertion(h,c=10**3,task_id=None, verbose=False, via_Minko
 
     except Exception as err:
         if verbose:
-            print(err)
+            print(f"Pari Gp idealaddtoone failed! Vector cannot be inserted! GCD = {gcd(ab[0].norm(),ab[1].norm())} ")
         return experiment_context_flag, False
 
     M = U*B
