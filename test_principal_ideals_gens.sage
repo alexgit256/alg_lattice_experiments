@@ -304,4 +304,3 @@ def launch_test_field_using_arakelov_multiple_times(field_conductor, tests = 10,
 
 #n = 2^6
 #res = test_field(n, 20, 10)
-launch_test_short_vector_insertion_multiple_times( 64, times=50, nthreads=10, verbose=True )
