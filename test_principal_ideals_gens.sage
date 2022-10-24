@@ -5,61 +5,95 @@ from fpylll import GSO, IntegerMatrix, FPLLL, Enumeration, EnumerationError, Eva
 from fpylll.tools.quality import basis_quality
 from fpylll.algorithms.bkz2 import BKZReduction
 from fpylll.util import gaussian_heuristic
+from time import perf_counter
+
+from multiprocessing import Pool, cpu_count
+import sys, os
+import sage.misc.randstate as randstate
+
+from arakelov import rand_p_ideal, arakelov_rand_walk, steps_num, bound_on_B
+from sage import version
+from utils import compare_sage_versions, PseudoBasis
+import time
 
 FPLLL.set_precision(200)
-import time
+initial_prime_norm = 10^4
+parisize = 144*2**20
+pari.default('parisize',parisize)    #set parisize to ~ parisize
 
 def cnorm_numfield(a):
     #computes the euclidean norm of the number field element a after the Minkowski embedding
-
-    #TODO: describe the function - DONE
     K = a.parent().fraction_field()
     sigmas = K.embeddings(CC)
 
     return sum( [abs(s(a))^2 for s in sigmas] )^(1/2)
 
-def short_lattice_vectors(B, nr_solutions=1, verbose=False):
+def scale_matrix(M):
+    #given matrix M over QQ finds least l s.t. l*M is over ZZ. Returns M, k
+    if M[0,0].parent()==ZZ:
+        return M, 1
+
+    coeffs = [t.denominator() for t in M.coefficients()]
+
+    l = M.denominator()
+    return matrix(ZZ,l*M), l
+
+def short_lattice_vectors(B, nr_solutions=1, verbose=False, task_id=None, radius=1.02):
     #Given lattice basis B in a form of integer matrix B returns nr_solutions shortest vectors found in the lattice
     #If verbose flag is True: outputs some advanced information
-    #TODO: describe the function - DONE
 
     n, m = B.nrows(), B.ncols()
 
-    Mint = IntegerMatrix.from_matrix(B)
+    M, l = scale_matrix(B)
+    Mint = IntegerMatrix.from_matrix(M.change_ring(ZZ))
 
     #BKZ
     GSO_M = GSO.Mat(Mint, float_type='mpfr')
     GSO_M.update_gso()
+
+    lll = LLL_FPYLLL.Reduction( GSO_M )
+    then=time.perf_counter()
+    lll()
+    print(f"LLL done in {time.perf_counter()-then}")
+    GSO_M.update_gso()
+    sys.stdout.flush()
+
     then=time.perf_counter()
 
     flags = BKZ_FPYLLL.AUTO_ABORT|BKZ_FPYLLL.MAX_LOOPS
     then=time.perf_counter()
-    for beta in range(4,min(Mint.nrows, Mint.ncols),2):
-        par = BKZ_FPYLLL.Param(block_size=beta, flags=flags, max_loops=25)
-        bkz = BKZReduction(GSO_M)
-        DONE = bkz(par)
 
+    for beta in range(4,min(Mint.nrows, Mint.ncols)+1,2):
+        par = BKZ_FPYLLL.Param(block_size=beta, flags=flags, max_loops=14)
+        bkz = BKZReduction(GSO_M)
+        then = time.perf_counter()
+        DONE = bkz(par)
+        if verbose and n>47:
+            msg = str( f"BKZ for beta={beta} done in {time.perf_counter()-then}, task_id: {task_id}" )
+            print(msg)
+        sys.stdout.flush()
 
     dt=time.perf_counter()-then
-    R = GSO_M.get_r(0, 0)
+    R = GSO_M.get_r(0, 0)*radius
 
     if verbose:
-        print('BKZ counted in',dt, 'sec,', ' gh:', log(gaussian_heuristic([GSO_M.get_r(i,i) for i in range(n)])), 'true len:', log(R))
+        print('BKZ computed in',dt, 'sec,', " gh:", log(gaussian_heuristic([GSO_M.get_r(i,i) for i in range(n)])), "true len:", log(R), "task_id:", task_id)
 
     then = time.perf_counter()
     enum = Enumeration(GSO_M, strategy=EvaluatorStrategy.BEST_N_SOLUTIONS, nr_solutions=nr_solutions)
-    res = enum.enumerate( 0, n, R, 0   )
+    res = enum.enumerate( 0, n, R, 1   )
     if verbose:
-        print('Enumeration done in', time.perf_counter()-then)
+        print('Enumeration done in', time.perf_counter()-then, "task_id:", task_id)
+        sys.stdout.flush()
+    res = sorted( res, key = lambda tup: tup[0] )
+    return [(vector([ZZ(t) / l for t in v[1]]))*matrix(ZZ,Mint) for v in res]    #[vector([round(t) for t in v[1]])*Mint for v in res] because t is float and it's weird
 
-    return [Mint.multiply_left([round(t) for t in v[1]]) for v in res]#[vector([round(t) for t in v[1]])*Mint for v in res]
 
-
-def test_field(field_conductor, p=3, p_max=10, verbose=False):
+def test_field(field_conductor,p_max=10, p=3, verbose=False):
 
     #field_conductor: conductor of number field we decompose ideals over
+    #p_max: number of primes we do experiments with
     #p: number such that we start experiments from the next_prime(p-1)
-    #p_max: primes we do experiments up to
     #vect_num: number of shortest vectors to check for a fixed ideal
 
     instances = []
@@ -74,7 +108,7 @@ def test_field(field_conductor, p=3, p_max=10, verbose=False):
 
     p=p-1  #we start from the next_prime(p-1)
 
-    while p<=p_max:
+    while p<p_max:
         p = next_prime(p)
 
         print('Counting for prime:', p)
@@ -100,7 +134,7 @@ def test_field(field_conductor, p=3, p_max=10, verbose=False):
 
             v = [ZZ(tmp) for tmp in V[0]]
 
-            j = K(list( vector(v)))  #TODO: rewrite short_lattice_vectors so it already returns v*B - DONE
+            j = K(list( vector(v)))
 
             if verbose:
                 print('j=',j)
@@ -122,8 +156,152 @@ def test_field(field_conductor, p=3, p_max=10, verbose=False):
 
 
     print(succ, 'succsesfull examples out of', tries,': ', (100*succ/tries).n(),'%')
-    return(instances)
+    print(instances)
+    return [succ, tries]
 
+def test_field_using_arakelov(field_conductor, N, bound_walk, s, verbose=False, task_id=None):
+    #field_conductor: conductor of number field we decompose ideals over
+    #bound_walk - bound on the norm of the ideals for Arakelov jump steps.
+    #s - distribution dispersion in Arakelow crawl steps. If None, it'll be computed automatically.
 
-n = 32
-res = test_field(n, 3, 97)
+    assert ((field_conductor & (field_conductor - 1)) == 0)  , f"Non-power-of-two cyclotomics not supported!"
+    K.<z> = CyclotomicField(field_conductor)
+
+    if verbose:
+        print("Field degree: ", K.degree())
+        print("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -")
+    succ  = 0
+
+    randstate.set_random_seed((os.getpid()+hash(time.perf_counter()))%2**31)
+    I = rand_p_ideal( K, initial_prime_norm )  #generate random prime ideal to start with
+
+    if verbose:
+        print(f"Starting Arakelow walk. id={task_id}")
+        sys.stdout.flush()
+        then = time.perf_counter()
+    stashed_norm = I.norm()
+    I = arakelov_rand_walk( I, bound_walk, s, N=N )
+    print(f"Norm diff: {(stashed_norm / norm(I)).n()}")
+    if verbose:
+        print(f"Arakelow walk done in {time.perf_counter()-then}")
+        sys.stdout.flush()
+    M= [
+        list(tmp) for tmp in I.basis()
+    ]   #QQ basis of the Ideal
+    V = short_lattice_vectors(matrix(M), nr_solutions = 8*K.degree()+1, verbose=verbose, task_id=task_id, radius=1.03)   #RETURN SHORT VECTOR COORDS
+    v = V[0]
+    min_norm = norm(v)
+    #print( [norm(vector(t)).n() for t in V] )
+    flag = False
+    vect_num = 0
+    for v in V:
+        #print(v.change_ring(RR), norm(v).n())
+        if norm(vector(v))/min_norm > 1+10^-64:
+            break
+        vect_num+=1
+        j = K(list( vector(v)))
+        assert j in I, f"found element not in ideal!"
+        #print(I, j, "|", norm(j)/norm(I))
+        J = Ideal(j)
+        flag = (J==I)   #flag showing if we found the ideal gens
+        if flag:
+            break
+
+    if verbose:
+        if flag:
+            print(f"Ideal is generated by its {vect_num}th shortest element. Task id = {task_id}. Norm/min_norm = {(norm(V[vect_num-1])/min_norm).n()}=1")
+        else:
+            print(f"Ideal not generated by any of its its {vect_num} shortest elements, checking next... Task id = ", task_id)
+        print('N(I)=', norm(I).n(), 'N(J)=', norm(J).n())
+        print()
+    if not flag:
+        succ += 1
+
+    sys.stdout.flush()
+    print(f"{task_id}-th task finished!")
+    return succ
+
+def test_field_using_arakelov_multiple_times(field_conductor, tests = 10, N=None, bound_walk = None, s=None, verbose=False, nthreads=0):
+
+    #field_conductor: conductor of number field we decompose ideals over
+    #tests - amount of runs
+    #bound_walk - same but for Arakelov jump steps
+    #s - distribution dispersion in Arakelow crawl steps
+
+    succ, tries = 0, 0
+
+    d = euler_phi( field_conductor )
+
+    if bound_walk is None:
+        """
+        Below is the Bach bound on the norms of ideals. Note: it is < 3*10^11 in practice
+        (3*10^11 is according to https://eprint.iacr.org/2020/297.pdf requirenments)
+        """
+        disc = 2^(d*log(d,2))   #the discriminant of pow-of-2 cyclotomic pield
+        bach_bound = ceil( 12*ln(abs(disc))^2 )   #according to https://arxiv.org/pdf/1607.02430.pdf
+        print( "bach vs bound: ", bach_bound.n(), bound_on_B(d).n() )
+        bound_walk = min( bach_bound,bound_on_B(d) ) #suggested_bound
+    if N is None:
+        N = steps_num(d) if d<32 else steps_num(d) - ceil( log(d,2)+1 ) # N_bound
+    if s is None:
+        s = 1/log(d,2)^2
+
+    """
+    Temporary output to trace params. To be deleted?
+    """
+    suggested_bound = bound_on_B(d)
+    N_bound = steps_num(d)
+    print( f"DEBUG B: ({bound_walk.n()} >? {suggested_bound.n()})" )
+    print( f"DEBUG N: ({N} >? {N_bound})" )
+    print( f"DEBUG s: ({s.n()} >? {1/log(d,2).n()^2})" )
+
+    if bound_walk < suggested_bound:
+        print(f"Warning! Chosen B is too small ({bound_walk.n()} < {(suggested_bound).n()})")
+    if N < N_bound:
+        print(f"Warning! Chosen N is too small ({N} < {N_bound})")
+
+    if compare_sage_versions(version.version, '9.5') <1 and nthreads>1:
+        proc = min( max(1,cpu_count()-2), nthreads )
+        pool = Pool(processes = proc )
+        print(f"Launching experiments on %d threads..." % proc)
+        print('______________________________________')
+        outputs = []
+        tasks = []
+        for i in range(tests):        # test_field_using_arakelov(field_conductor, N, bound_walk, s, tests = 10, verbose=False, task_id=None)
+            task_id = i
+            tasks.append(  pool.apply_async(test_field_using_arakelov,
+                (field_conductor, N, bound_walk, s, verbose, i)
+            ))
+        for i in range(len(tasks)):
+            tmp = tasks[i].get()
+            succ += tmp
+            tries += 1
+    else:
+        print("Sage 9.6+ multiprocessing not supported or nthreads==0!")
+        outputs = []
+        for i in range(tests):
+            tmp = test_field_using_arakelov(field_conductor, N, ceil(bound_walk), s, verbose, i)
+            succ += tmp
+            tries += 1
+            print(f"{i}-th task finished!")
+    print( f"Ideals not generated by their short elements: {succ}, Tries: {tries}. Percentage: {(100*succ/tries).n()}" )
+
+def launch_test_field_using_arakelov_multiple_times(field_conductor, tests = 10, N=None, bound_walk = None, s=None, verbose=False, nthreads=0, stdout_path=None):
+    if stdout_path is None:
+        stdout_path = f"ideal_gen_n{field_conductor}_{randrange(2**31)}.txt"
+    print(f"Dumping experiments to the file {stdout_path} ...")
+    stdout_ = open(stdout_path, 'w')
+    stderr_ = open("err_log.txt", 'w')
+    exp_start_time = time.perf_counter()
+    with stdout_ as sys.stdout:
+        with stderr_ as sys.stderr:
+            test_field_using_arakelov_multiple_times(field_conductor, tests, N, bound_walk, s, verbose, nthreads)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
+    print(f"{tests} experiments conducted in {time.perf_counter()-exp_start_time}")
+
+#n = 2^6
+#res = test_field(n, 20, 10)
+launch_test_short_vector_insertion_multiple_times( 64, times=50, nthreads=10, verbose=True )

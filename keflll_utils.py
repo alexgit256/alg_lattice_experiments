@@ -4,6 +4,7 @@
 from sage.all_cmdline import *   # import sage library
 
 _sage_const_320 = Integer(320); _sage_const_2 = Integer(2); _sage_const_0 = Integer(0); _sage_const_1 = Integer(1); _sage_const_2p = RealNumber('2.'); _sage_const_1p = RealNumber('1.'); _sage_const_4 = Integer(4)
+from sys import stdout
 import time
 import copy
 import numpy
@@ -14,7 +15,7 @@ from fpylll import LLL as LLL_FPYLLL
 from fpylll import IntegerMatrix, GSO
 from fpylll.algorithms.bkz2 import BKZReduction as BKZ2
 
-Prec=_sage_const_320 
+Prec=_sage_const_320
 
 scale_factor=_sage_const_2 **Prec
 
@@ -40,7 +41,7 @@ def butterfly(v_,s):
         vp = butterfly(vp,s)
 
         zeta=(exp(-_sage_const_2p *I*pi/n*s)).n(Prec)
-        mu=_sage_const_1 
+        mu=_sage_const_1
         for i in range(n/_sage_const_2 ):
             t=mu*vi[i]
             v_[i+n/_sage_const_2 ]=vp[i]-t
@@ -174,6 +175,7 @@ def fast_hermitian_inner_product(u,v):
         return u.hermitian_inner_product(v)
     return sum( [fast_mult( v[i], u[i].conjugate() ) for i in range(len(u))] )
 
+
 def rfact_herm(B, debug=False, Prec=Prec):
     #R factor of RQ decomposition.
     #checked
@@ -204,7 +206,7 @@ def rfact_herm(B, debug=False, Prec=Prec):
     R=matrix(F,d,d)
     for j in range(d):
         for i in range(j+_sage_const_1 ):
-            R[j,i]= fast_mult( fast_hermitian_inner_product(Q[i],B[j]), racines[i]  )
+            R[i,j]= fast_mult( fast_hermitian_inner_product(B[j],Q[i]), racines[i]  )  #<b,q>, not <q,b> because hermitian_inner_product works not how we need
     return R
 
 
@@ -247,11 +249,11 @@ def invertibles(f):
     assert f == round(f)
     out=[_sage_const_0  for i in range(euler_phi(f))]
 
-    t=_sage_const_0 
+    t=_sage_const_0
     for i in range(f):
         if gcd(i,f)==_sage_const_1 :
             out[t]=i
-            t+=_sage_const_1 
+            t+=_sage_const_1
     return out
 
 
@@ -320,15 +322,15 @@ def GEuclide(L, Lptr,a,b):
         OK = a.parent().fraction_field()
         if a==_sage_const_0  and OK(b).is_unit():
             print('a=0 moment')
-            ab_situations["a0"]+=_sage_const_1 
+            ab_situations["a0"]+=_sage_const_1
             return _sage_const_0 , _sage_const_1 /b
         if b==_sage_const_0  and OK(a).is_unit():
             print('b=0 moment')
-            ab_situations["0b"]+=_sage_const_1 
-            return _sage_const_1 /a, _sage_const_0 
-        ab_situations["gcdab"]+=_sage_const_1 
+            ab_situations["0b"]+=_sage_const_1
+            return _sage_const_1 /a, _sage_const_0
+        ab_situations["gcdab"]+=_sage_const_1
         raise err
-    ab_situations["ab"]+=_sage_const_1 
+    ab_situations["ab"]+=_sage_const_1
     K = a.parent().fraction_field()
     A = Ideal(K,a)
     B = Ideal(K, b)
@@ -429,7 +431,7 @@ def compute_log_unit_lattice(K, debug=False):
         units = [z_**((_sage_const_1 -(_sage_const_2 *i-_sage_const_1 ))/_sage_const_2 ) * (_sage_const_1 -z_**i)/(_sage_const_1 -z_) for i in invertibles(f/_sage_const_2 )[_sage_const_1 :] ]
     assert all( [tmp.is_unit() for tmp in units] )
 
-    d = K.degree()/_sage_const_2 
+    d = K.degree()/_sage_const_2
     B=matrix([
         log_embedding(units[i]) * scale_factor for i in range(d-_sage_const_1 )
     ])
@@ -469,4 +471,3 @@ class FieldInfo:
         G, u = compute_log_unit_lattice(self.Field)
         self.LLL_GSO = G
         self.cyclotomic_units = u
-
